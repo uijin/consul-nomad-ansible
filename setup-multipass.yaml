@@ -20,7 +20,7 @@
     with_items:
     - multipass list --format json | jq -r '.list[].ipv4[0]'
     register: server_ip
-  - name: view variable
+  - name: View variable
     debug:
       msg: "{{ server_ip }}"
   - name: Add server fingerprint to known_hosts

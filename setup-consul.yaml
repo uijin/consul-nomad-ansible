@@ -4,6 +4,85 @@
     inventory: hosts
   tasks:
   - name: Check server connection
-    debug:
-      msg: Connection is OKay
-    tags: check_server
+    command: echo "Connection is ready"
+    tags: ["check-ssh"]
+
+  ## Update /etc/hosts
+  - name: Add IP hostname pair in /etc/hosts
+    lineinfile:
+      dest: /etc/hosts
+      state: present
+      regex: "{{ hostvars[item].ansible_default_ipv4.address }} {{ item }}"
+      line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ item }}"
+    with_items: "{{ groups['server'] }}"
+  
+  ## Install Consul by APT
+  - name: Add Consul APT key
+    apt_key:
+      url: https://apt.releases.hashicorp.com/gpg
+  - name: Add Consul APT repository
+    apt_repository:
+      repo: deb https://apt.releases.hashicorp.com focal main
+  - name: Install Consul package
+    package:
+      name: consul  
+
+  ## Update Consul config file /etc/consul.d/consul.hcl
+  - name: Update Consul config, set server = true
+    lineinfile:
+      dest: /etc/consul.d/consul.hcl
+      state: present
+      regex: ".*server.*=.*"
+      line: "server = true"
+  - name: Update Consul config, set bootstrap_expect = 3
+    lineinfile:
+      dest: /etc/consul.d/consul.hcl
+      state: present
+      regex: ".*bootstrap_expect.*=.*"
+      line: "bootstrap_expect = 3"
+  - name: Update Consul config, set retry_join = [ALL_CONSUL_SERVERS]
+    lineinfile:
+      dest: /etc/consul.d/consul.hcl
+      state: present
+      regex: "^retry_join = .*"
+      line: >-
+        retry_join = ["{{ groups['server'] | join('", "')  }}"]
+  - name: FIX Consul systemd service file
+    # There is a pitfall on Ubuntu 20.04 .deb package
+    # https://github.com/hashicorp/consul/issues/11911
+    lineinfile:
+      dest: /lib/systemd/system/consul.service
+      state: present
+      regex: "^EnvironmentFile=/etc/consul.d/consul.env"
+      line: "EnvironmentFile=-/etc/consul.d/consul.env"
+  
+  ## Start Consul services in the cluster
+  - name: Start Consul cluster
+    systemd:
+      name: consul
+      state: started
+      daemon_reload: yes
+
+  ## Consul Web UI
+  - name: Enable Consul Web UI
+    command: 'echo "Enable Consul UI on {{ play_hosts[0] }}"'
+    when: inventory_hostname == play_hosts[0]
+    tags: ['consul-ui', 'never']
+  - name: Update Consul config, set ui_config.enable = true
+    replace:
+      path: /etc/consul.d/consul.hcl
+      backup: yes
+      regexp: "#ui_config{\n#  enabled = true\n#}"
+      replace: |
+        ui_config {
+          enabled = true
+        }
+    when: inventory_hostname == play_hosts[0]
+    tags: ['consul-ui', 'never']
+  - name: Restart Consul server
+    systemd:
+      name: consul
+      state: restarted
+      daemon_reload: yes
+    when: inventory_hostname == play_hosts[0]
+    tags: ['consul-ui', 'never']
