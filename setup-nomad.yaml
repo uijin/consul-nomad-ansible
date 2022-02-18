@@ -1,0 +1,36 @@
+- hosts: server
+  vars:
+    ansible_user: ubuntu
+    inventory: hosts
+  tasks:
+  - name: Check server connection
+    command: echo "Connection is ready"
+    tags: ["check-ssh"]
+  
+  ## Install Nomad by APT
+  - name: Add HashiCorp APT key
+    apt_key:
+      url: https://apt.releases.hashicorp.com/gpg
+  - name: Add HashiCorp APT repository
+    apt_repository:
+      repo: deb https://apt.releases.hashicorp.com focal main
+  - name: Install Nomad package
+    package:
+      name: nomad  
+  
+  ## Configure Nomad Server
+  - name: Update Server config, set bootstrap_expect = 3
+    blockinfile:
+      path: /etc/nomad/01-server.hcl 
+      create: yes
+      block: |
+        server {
+          enabled = true
+          bootstrap_expect = 3
+        }
+
+  ## Start Nomad services in the cluster
+  - name: Start Nomad cluster
+    systemd:
+      name: nomad
+      state: restarted

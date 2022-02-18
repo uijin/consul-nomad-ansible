@@ -1,0 +1,47 @@
+- hosts: localhost
+  vars:
+    vm_count: 1
+  tasks:
+  - name: Create VM in multipass
+    command: multipass launch --name {{ item }}
+    with_sequence: start=1 count={{vm_count}} format=nomad-client-%02x
+    register: create_vm
+    ignore_errors: yes
+  - name: Add SSH authorized_keys to VM
+    shell: cat id_ed25519.pub | multipass exec {{ item }} -- tee -a .ssh/authorized_keys
+    with_sequence: start=1 count={{vm_count}} format=nomad-client-%02x
+    when: create_vm.failed is not true
+  - name: Add Nomad client to repository(hosts) file
+    shell: echo [client] | tee hosts-client
+  - name: Generate ansible repository(hosts) file
+    shell: >
+      multipass list --format json 
+      | jq -r '.list[] | (.name+" ansible_host="+.ipv4[0])'
+      | grep nomad-client
+      | tee -a hosts-client
+  - name: Collect VM IP for using later
+    shell: "{{ item }}"
+    with_items:
+    - multipass list --format json | jq -r '.list[].ipv4[0]'
+    register: server_ip
+  - name: View variable
+    debug:
+      msg: "{{ server_ip }}"
+  - name: Add server fingerprint to known_hosts
+    command: ssh -o "StrictHostKeyChecking=accept-new" ubuntu@{{ item }}
+    with_items: "{{server_ip.results[0].stdout_lines}}"
+  - name: Wait for SSH port available on server
+    wait_for:
+      host: "{{ item }}"
+      port: 22
+      delay: 5
+      timeout: 300
+    with_items: "{{server_ip.results[0].stdout_lines}}"
+
+  - name: Delete VM in multipass
+    command: multipass delete {{ item }}
+    with_sequence: start=1 count={{vm_count}} format=nomad-client-%02x
+    tags: ["never"]
+  - name: Purge VM multipass
+    command: multipass purge
+    tags: ["never"]
