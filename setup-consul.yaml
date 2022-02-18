@@ -1,0 +1,9 @@
+- hosts: server
+  vars:
+    ansible_user: ubuntu
+    inventory: hosts
+  tasks:
+  - name: Check server connection
+    debug:
+      msg: Connection is OKay
+    tags: check_server
