@@ -37,7 +37,7 @@
   - name: Delete VM in multipass
     command: multipass delete {{ item }}
     with_sequence: start=1 count=3 format=consul-nomad-%02x
-    tags: ["never"]
+    tags: ["never", "delete"]
   - name: Purge VM multipass
     command: multipass purge
-    tags: ["never"]
+    tags: ["never", "delete"]

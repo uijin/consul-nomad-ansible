@@ -24,7 +24,7 @@
   - name: Add HashiCorp APT repository
     apt_repository:
       repo: deb https://apt.releases.hashicorp.com focal main
-  - name: Install Nomad package
+  - name: Install Consul package
     package:
       name: consul  
   ## Install Nomad

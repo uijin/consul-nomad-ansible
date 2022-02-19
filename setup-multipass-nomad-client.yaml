@@ -41,7 +41,7 @@
   - name: Delete VM in multipass
     command: multipass delete {{ item }}
     with_sequence: start=1 count={{vm_count}} format=nomad-client-%02x
-    tags: ["never"]
+    tags: ["never", "delete"]
   - name: Purge VM multipass
     command: multipass purge
-    tags: ["never"]
+    tags: ["never", "delete"]
